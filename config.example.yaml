@@ -1,0 +1,12 @@
+collect_interval_seconds: 10
+history_window_hours: 168
+interfaces:
+  - eth0
+  - eth0.3
+  - ppp0
+web_host: 0.0.0.0
+web_port: 8080
+route_test_target: 8.8.8.8
+ru_update_file: /var/lib/ru-nft-last-update
+vpn_service_name: sstp-vpn.service
+log_level: INFO

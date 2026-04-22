@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Strat-tools Server Monitor</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <div class="page-shell">
+    <header class="topbar">
+      <div class="brand-cluster">
+        <div class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 64 64" role="img">
+            <defs>
+              <linearGradient id="stratLogoGradient" x1="10" x2="54" y1="8" y2="56">
+                <stop offset="0" stop-color="#66e3ff" />
+                <stop offset="0.58" stop-color="#7aa7ff" />
+                <stop offset="1" stop-color="#4fd18b" />
+              </linearGradient>
+            </defs>
+            <path d="M14 18L32 8l18 10v18L32 56 14 46V18Z" fill="none" stroke="url(#stratLogoGradient)" stroke-width="3.2" stroke-linejoin="round" />
+            <path d="M20 22h17l7 7-7 7H24" fill="none" stroke="url(#stratLogoGradient)" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" />
+            <path d="M44 29H28l-8 8 8 8h16" fill="none" stroke="url(#stratLogoGradient)" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" opacity="0.72" />
+            <circle cx="20" cy="22" r="3.2" fill="#07111f" stroke="#66e3ff" stroke-width="2.4" />
+            <circle cx="44" cy="29" r="3.2" fill="#07111f" stroke="#7aa7ff" stroke-width="2.4" />
+            <circle cx="20" cy="37" r="3.2" fill="#07111f" stroke="#4fd18b" stroke-width="2.4" />
+          </svg>
+        </div>
+        <div>
+          <p class="brand-name">Strat-tools</p>
+          <h1>Gateway Telemetry</h1>
+          <p class="subtitle">Infrastructure Monitoring | Routing & VPN Observability | In-memory metrics</p>
+        </div>
+      </div>
+
+      <div class="control-panel" aria-label="Dashboard controls">
+        <label>
+          <span data-i18n="controls.period">Period</span>
+          <select id="periodSelect">
+            <option value="1h" data-i18n="period.1h">1 hour</option>
+            <option value="24h" selected data-i18n="period.24h">24 hours</option>
+            <option value="7d" data-i18n="period.7d">7 days</option>
+          </select>
+        </label>
+        <label>
+          <span data-i18n="controls.aggregation">Aggregation</span>
+          <select id="stepSelect">
+            <option value="raw" data-i18n="step.raw">raw</option>
+            <option value="1m" data-i18n="step.1m">1 minute</option>
+            <option value="5m" data-i18n="step.5m">5 minutes</option>
+            <option value="15m" data-i18n="step.15m">15 minutes</option>
+          </select>
+        </label>
+        <label>
+          <span data-i18n="controls.units">Traffic units</span>
+          <select id="unitSelect">
+            <option value="bytes" data-i18n="units.bytes">Bytes</option>
+            <option value="bits" data-i18n="units.bits">Bits</option>
+          </select>
+        </label>
+        <label>
+          <span data-i18n="controls.language">Language</span>
+          <select id="languageSelect">
+            <option value="en">English</option>
+            <option value="ru">Русский</option>
+          </select>
+        </label>
+        <fieldset class="interface-picker">
+          <legend data-i18n="controls.interfaces">Interfaces</legend>
+          <div class="interface-options" id="interfaceOptions">
+            {% for interface in interfaces %}
+            <label class="checkbox-chip">
+              <input type="checkbox" class="interface-checkbox" value="{{ interface }}">
+              <span>{{ interface }}</span>
+            </label>
+            {% endfor %}
+          </div>
+          <button class="secondary-button" id="addNetworkChartButton" type="button" data-i18n="controls.addNetworkChart">Add network chart</button>
+        </fieldset>
+        <button class="help-button" id="helpButton" type="button" aria-haspopup="dialog" aria-controls="helpModal">
+          <span class="help-button-icon" aria-hidden="true">?</span>
+          <span data-i18n="controls.help">Help</span>
+        </button>
+      </div>
+    </header>
+
+    <main>
+      <section class="summary-grid" id="summaryGrid" aria-label="Current server summary">
+        <article class="metric-card skeleton"></article>
+        <article class="metric-card skeleton"></article>
+        <article class="metric-card skeleton"></article>
+        <article class="metric-card skeleton"></article>
+      </section>
+
+      <section class="health-panel" aria-label="Infrastructure health">
+        <div>
+          <p class="section-kicker" data-i18n="health.kicker">Control plane</p>
+          <h2 data-i18n="health.title">Routing & VPN health</h2>
+        </div>
+        <div class="health-strip" id="healthStrip">
+          <span class="health-pill skeleton-pill" data-i18n="state.loadingStatus">Loading status</span>
+        </div>
+      </section>
+
+      <section class="peak-panel" aria-label="Network peak statistics">
+        <div class="peak-panel-heading">
+          <div>
+            <p class="section-kicker" data-i18n="peak.kicker">Traffic peaks</p>
+            <h2 data-i18n="peak.title">Peak traffic by interface</h2>
+          </div>
+          <button class="secondary-button" id="resetPeakStatsButton" type="button" data-i18n="peak.reset">Reset peak stats</button>
+        </div>
+        <div class="peak-grid" id="peakStatsGrid">
+          <article class="peak-card skeleton"></article>
+          <article class="peak-card skeleton"></article>
+          <article class="peak-card skeleton"></article>
+        </div>
+      </section>
+
+      <section class="charts-layout" id="chartsLayout">
+        <article class="chart-card" draggable="true" data-chart-card="cpu">
+          <div class="chart-heading">
+            <div>
+              <p class="section-kicker" data-i18n="chart.cpu.kicker">Compute</p>
+              <h2><span data-i18n="chart.cpu.title">CPU / Load</span> <span class="info-tip" tabindex="0" data-i18n-aria-label="tip.chart.cpu" aria-label="CPU graph shows processor utilization over the selected period. Long values above 90% indicate overload.">i</span></h2>
+            </div>
+            <span class="chart-note" data-i18n="chart.cpu.note">percent utilization</span>
+          </div>
+          <canvas id="cpuChart"></canvas>
+        </article>
+
+        <article class="chart-card" draggable="true" data-chart-card="ram">
+          <div class="chart-heading">
+            <div>
+              <p class="section-kicker" data-i18n="chart.ram.kicker">Memory</p>
+              <h2><span data-i18n="chart.ram.title">RAM</span> <span class="info-tip" tabindex="0" data-i18n-aria-label="tip.chart.ram" aria-label="RAM graph shows memory usage. Sustained values above 75-90% can indicate memory pressure.">i</span></h2>
+            </div>
+            <span class="chart-note" data-i18n="chart.ram.note">percent used</span>
+          </div>
+          <canvas id="ramChart"></canvas>
+        </article>
+
+        <article class="chart-card" draggable="true" data-chart-card="temp">
+          <div class="chart-heading">
+            <div>
+              <p class="section-kicker" data-i18n="chart.temp.kicker">Thermals</p>
+              <h2><span data-i18n="chart.temp.title">Temperature</span> <span class="info-tip" tabindex="0" data-i18n-aria-label="tip.chart.temp" aria-label="Temperature graph shows CPU thermals in Celsius. High sustained values may mean cooling problems.">i</span></h2>
+            </div>
+            <span class="chart-note" data-i18n="chart.temp.note">degrees Celsius</span>
+          </div>
+          <canvas id="tempChart"></canvas>
+        </article>
+
+        <article class="chart-card" draggable="true" data-chart-card="net">
+          <div class="chart-heading">
+            <div>
+              <p class="section-kicker" data-i18n="chart.net.kicker">Traffic control</p>
+              <h2><span class="network-chart-title" data-network-title>Network traffic</span> <span class="info-tip" tabindex="0" data-i18n-aria-label="tip.chart.net" aria-label="Network graph shows RX and TX for selected interfaces. Use ppp0 to inspect VPN traffic.">i</span></h2>
+            </div>
+            <span class="chart-note" id="netChartNote">bytes per second</span>
+          </div>
+          <div class="network-card-controls" data-network-controls="net"></div>
+          <canvas id="netChart"></canvas>
+        </article>
+      </section>
+    </main>
+
+    <footer class="dashboard-footer">
+      <span>Strat-tools Server Monitor</span>
+      <span id="nodeMeta">Node: local gateway</span>
+      <span id="historyMemory">History memory: waiting</span>
+      <span id="diskUsage">Disk free: waiting</span>
+      <span id="lastRefresh">Last refresh: waiting</span>
+      <span data-i18n="footer.build">Build: in-memory v1</span>
+    </footer>
+  </div>
+
+  <div id="helpModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="helpModalTitle" aria-hidden="true">
+    <div class="modal-backdrop" data-help-close></div>
+    <section class="modal-panel">
+      <header class="modal-header">
+        <div>
+          <p class="section-kicker" data-i18n="help.kicker">User guide</p>
+          <h2 id="helpModalTitle">Strat-tools Server Monitor Help</h2>
+        </div>
+        <button class="modal-close" id="helpCloseButton" type="button" aria-label="Close help">x</button>
+      </header>
+      <div class="modal-content" id="helpContent">
+        <p class="help-loading" data-i18n="help.loading">Loading help...</p>
+      </div>
+    </section>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

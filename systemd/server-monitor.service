@@ -1,0 +1,16 @@
+[Unit]
+Description=In-memory Server Monitor
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/server-monitor
+ExecStart=/usr/bin/python3 -m server_monitor.app --config /opt/server-monitor/config.yaml
+Restart=always
+RestartSec=5
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target
